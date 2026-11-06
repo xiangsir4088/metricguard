@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metricguard"
+version = "1.0.0"
+description = "面向可观测性 agent 的指标采集与下发库（含卡迪纳利守卫）"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "xiangsir4088" }]
+license = { text = "MIT" }
+
+[tool.setuptools.packages.find]
+include = ["metricguard*"]
