@@ -1,8 +1,13 @@
-"""回归测试：基础数据类型与发射路径（未开启守卫时的既有行为）。"""
+"""回归测试：基础数据类型与发射路径的既有行为（不得被卡迪纳利守卫实现破坏）。
+
+注意：本套用例是「可见回归」——修复卡迪纳利守卫后也必须保持全绿。因此只断言
+与守卫实现无关、或任何正确实现都应成立的行为；不要把「桩不限制」这类缺陷编码
+成断言。
+"""
 
 import unittest
 
-from metricguard.core import LabelSet, MetricType, Series
+from metricguard.core import LabelSet, Series
 from metricguard.emitter import Emitter, InMemorySink
 from metricguard.cardinality import CardinalityGuard
 
@@ -36,6 +41,7 @@ class TestSeries(unittest.TestCase):
 
 class TestEmitterNoGuard(unittest.TestCase):
     def test_no_guard_emits_everything(self):
+        """未开启守卫时，任何实现都不得改变发射行为：全部下发。"""
         sink = InMemorySink()
         emitter = Emitter(sink)
         series = [
@@ -47,19 +53,6 @@ class TestEmitterNoGuard(unittest.TestCase):
         self.assertEqual(sink.total_samples(), 10)
         self.assertEqual(len(sink.distinct_labels("m")), 10)
 
-    def test_guard_enabled_but_stub_does_not_limit(self):
-        """当前守卫是桩：开启后仍不限制（缺口）。模型实现后此断言会改变。"""
-        sink = InMemorySink()
-        guard = CardinalityGuard(max_series_per_metric=3, max_total_series=100)
-        emitter = Emitter(sink, guard=guard)
-        series = [
-            Series("m", LabelSet.from_mapping({"id": str(i)}), 1.0, float(i))
-            for i in range(10)
-        ]
-        results = emitter.emit_all(series)
-        self.assertTrue(all(results))  # 桩：全部放行
-        self.assertEqual(sink.total_samples(), 10)
-
 
 class TestGuardInterface(unittest.TestCase):
     def test_limits_contract(self):
@@ -69,11 +62,17 @@ class TestGuardInterface(unittest.TestCase):
         self.assertEqual(guard.limits()["max_total_series"], 100)
         self.assertEqual(guard.limits()["inactive_ttl_seconds"], 30)
 
-    def test_stub_stats_zero(self):
+    def test_methods_callable(self):
+        """守卫对外方法签名必须存在且可调用（实现与否不影响签名）。"""
         guard = CardinalityGuard()
-        self.assertEqual(guard.dropped_series(), 0)
-        self.assertEqual(guard.active_series("any"), 0)
-        self.assertEqual(guard.total_active_series(), 0)
+        ls = LabelSet.from_mapping({"a": "1"})
+        self.assertTrue(callable(guard.check))
+        self.assertTrue(callable(guard.record))
+        self.assertTrue(callable(guard.dropped_series))
+        self.assertTrue(callable(guard.active_series))
+        self.assertTrue(callable(guard.total_active_series))
+        # check 必须返回 bool
+        self.assertIsInstance(guard.check("m", ls, 0.0), bool)
 
 
 if __name__ == "__main__":
